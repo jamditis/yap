@@ -239,6 +239,14 @@
       }
     }
 
+    .hero-subtext {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 20px;
+      animation: fade-slide-up 0.8s ease-out 0.4s backwards;
+    }
+
     .btn {
       display: inline-flex;
       align-items: center;
@@ -338,37 +346,6 @@
       color: var(--text-muted);
     }
 
-    .terminal-body {
-      padding: 24px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.9rem;
-      line-height: 1.8;
-      min-height: 300px;
-    }
-
-    .terminal-line {
-      margin-bottom: 8px;
-      opacity: 0;
-      animation: type-in 0.5s ease-out forwards;
-    }
-
-    .terminal-line:nth-child(1) { animation-delay: 0.5s; }
-    .terminal-line:nth-child(2) { animation-delay: 1.5s; }
-    .terminal-line:nth-child(3) { animation-delay: 2.5s; }
-    .terminal-line:nth-child(4) { animation-delay: 3.5s; }
-    .terminal-line:nth-child(5) { animation-delay: 4.5s; }
-
-    @keyframes type-in {
-      from {
-        opacity: 0;
-        transform: translateX(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-
     .prompt {
       color: var(--green-glow);
     }
@@ -401,6 +378,168 @@
     @keyframes cursor-blink {
       0%, 50% { opacity: 1; }
       51%, 100% { opacity: 0; }
+    }
+
+    /* Audio Visualizer */
+    .audio-visualizer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      height: 60px;
+      margin: 32px 0 48px;
+    }
+
+    .audio-bar {
+      width: 4px;
+      background: var(--green-glow);
+      border-radius: 2px;
+      box-shadow: 0 0 10px var(--green-dim);
+      animation: audio-pulse 1.2s ease-in-out infinite;
+    }
+
+    .audio-bar:nth-child(1) { height: 20px; animation-delay: 0s; }
+    .audio-bar:nth-child(2) { height: 35px; animation-delay: 0.1s; }
+    .audio-bar:nth-child(3) { height: 25px; animation-delay: 0.2s; }
+    .audio-bar:nth-child(4) { height: 45px; animation-delay: 0.3s; }
+    .audio-bar:nth-child(5) { height: 55px; animation-delay: 0.15s; }
+    .audio-bar:nth-child(6) { height: 40px; animation-delay: 0.25s; }
+    .audio-bar:nth-child(7) { height: 50px; animation-delay: 0.05s; }
+    .audio-bar:nth-child(8) { height: 30px; animation-delay: 0.35s; }
+    .audio-bar:nth-child(9) { height: 45px; animation-delay: 0.2s; }
+    .audio-bar:nth-child(10) { height: 35px; animation-delay: 0.1s; }
+    .audio-bar:nth-child(11) { height: 55px; animation-delay: 0.25s; }
+    .audio-bar:nth-child(12) { height: 40px; animation-delay: 0.15s; }
+    .audio-bar:nth-child(13) { height: 25px; animation-delay: 0.3s; }
+    .audio-bar:nth-child(14) { height: 50px; animation-delay: 0.05s; }
+    .audio-bar:nth-child(15) { height: 20px; animation-delay: 0.2s; }
+
+    @keyframes audio-pulse {
+      0%, 100% {
+        transform: scaleY(0.3);
+        opacity: 0.5;
+      }
+      50% {
+        transform: scaleY(1);
+        opacity: 1;
+      }
+    }
+
+    .visualizer-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .visualizer-label::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--green-glow);
+      border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+
+    /* Interactive Terminal */
+    .demo-controls {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .demo-btn {
+      padding: 10px 20px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--text-dim);
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .demo-btn:hover {
+      border-color: var(--green-dim);
+      color: var(--text-primary);
+    }
+
+    .demo-btn.active {
+      border-color: var(--green-glow);
+      color: var(--green-glow);
+      box-shadow: 0 0 15px var(--green-dim);
+    }
+
+    .terminal-body {
+      padding: 24px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.9rem;
+      line-height: 1.8;
+      min-height: 280px;
+    }
+
+    .terminal-line {
+      margin-bottom: 8px;
+      opacity: 0;
+      transform: translateX(-10px);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .terminal-line.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .terminal-line.typing .command,
+    .terminal-line.typing .voice-input {
+      overflow: hidden;
+      white-space: nowrap;
+      border-right: 2px solid var(--green-glow);
+      animation: typing-cursor 0.7s step-end infinite;
+    }
+
+    @keyframes typing-cursor {
+      0%, 50% { border-color: var(--green-glow); }
+      51%, 100% { border-color: transparent; }
+    }
+
+    .replay-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 16px auto 0;
+      padding: 8px 16px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.75rem;
+      background: transparent;
+      border: 1px solid var(--text-dim);
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .replay-btn:hover {
+      border-color: var(--green-glow);
+      color: var(--green-glow);
+    }
+
+    .replay-btn svg {
+      width: 14px;
+      height: 14px;
     }
 
     /* Features */
@@ -579,10 +718,48 @@
       margin-bottom: 16px;
     }
 
-    .download-content p {
+    .download-content .highlight {
+      color: var(--green-glow);
+      text-shadow: 0 0 20px var(--green-dim);
+    }
+
+    .download-desc {
       color: var(--text-muted);
       font-size: 1.1rem;
       margin-bottom: 40px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .download-stats {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      margin-bottom: 48px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stat-value {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--green-glow);
+      text-shadow: 0 0 15px var(--green-dim);
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .download-buttons {
@@ -611,6 +788,20 @@
       transform: translateY(-2px);
     }
 
+    .platform-btn.primary {
+      background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-panel) 100%);
+      border-color: var(--green-glow);
+      box-shadow: 0 0 20px rgba(0,255,65,0.15);
+    }
+
+    .platform-btn.primary:hover {
+      box-shadow: 0 0 40px rgba(0,255,65,0.3);
+    }
+
+    .platform-btn.primary .platform-name {
+      color: var(--green-glow);
+    }
+
     .platform-btn svg {
       width: 24px;
       height: 24px;
@@ -628,6 +819,14 @@
     .platform-version {
       font-size: 0.75rem;
       color: var(--text-muted);
+    }
+
+    .download-note {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 32px;
+      opacity: 0.8;
     }
 
     /* Footer */
@@ -727,27 +926,52 @@
           Transform natural speech into precise CLI commands.
           Yap is the voice assistant built for developers who move fast.
         </p>
+        <div class="audio-visualizer">
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+        </div>
+        <div class="visualizer-label">Listening...</div>
         <div class="hero-cta">
-          <a href="#download" class="btn btn-primary">
+          <a href="https://github.com/jamditis/yap/releases/latest" class="btn btn-primary">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
               <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            Download for Windows
+            Download Free
           </a>
-          <a href="https://github.com/jamditis/yap" class="btn btn-secondary">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          <a href="#demo" class="btn btn-secondary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
             </svg>
-            View Source
+            See It In Action
           </a>
         </div>
+        <p class="hero-subtext">Free & open source. No account required.</p>
       </div>
     </section>
 
-    <section class="demo-section">
+    <section id="demo" class="demo-section">
       <div class="container">
+        <div class="demo-controls">
+          <button class="demo-btn active" data-demo="git">Git</button>
+          <button class="demo-btn" data-demo="docker">Docker</button>
+          <button class="demo-btn" data-demo="npm">NPM</button>
+          <button class="demo-btn" data-demo="files">Files</button>
+        </div>
         <div class="terminal">
           <div class="terminal-header">
             <span class="terminal-dot red"></span>
@@ -755,22 +979,16 @@
             <span class="terminal-dot green"></span>
             <span class="terminal-title">yap ~ voice-to-cli</span>
           </div>
-          <div class="terminal-body">
-            <div class="terminal-line">
-              <span class="prompt">$</span> <span class="voice-input">"show me the git status"</span>
-            </div>
-            <div class="terminal-line">
-              <span class="prompt">$</span> <span class="command">git status</span>
-            </div>
-            <div class="terminal-line output">On branch main<br>Your branch is up to date with 'origin/main'.</div>
-            <div class="terminal-line">
-              <span class="prompt">$</span> <span class="voice-input">"list all files in the source folder"</span>
-            </div>
-            <div class="terminal-line">
-              <span class="prompt">$</span> <span class="command">ls -la src/</span><span class="cursor"></span>
-            </div>
+          <div class="terminal-body" id="terminal-body">
+            <!-- Content populated by JavaScript -->
           </div>
         </div>
+        <button class="replay-btn" id="replay-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+          </svg>
+          Replay Demo
+        </button>
       </div>
     </section>
 
@@ -850,16 +1068,33 @@
     <section id="download" class="download-section">
       <div class="container">
         <div class="download-content">
-          <h2>Ready to Yap?</h2>
-          <p>Download Yap and start speaking to your terminal.</p>
+          <p class="section-label">Get Started</p>
+          <h2>Start Yapping in <span class="highlight">30 Seconds</span></h2>
+          <p class="download-desc">No complex setup. No account creation. Just download, install, and start speaking commands.</p>
+
+          <div class="download-stats">
+            <div class="stat">
+              <span class="stat-value">100%</span>
+              <span class="stat-label">Free & Open Source</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">~50MB</span>
+              <span class="stat-label">Lightweight Install</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">Alt+S</span>
+              <span class="stat-label">To Start Recording</span>
+            </div>
+          </div>
+
           <div class="download-buttons">
-            <a href="https://github.com/jamditis/yap/releases/latest" class="platform-btn">
+            <a href="https://github.com/jamditis/yap/releases/latest" class="platform-btn primary">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
               </svg>
               <div class="platform-info">
-                <div class="platform-name">Windows</div>
-                <div class="platform-version">v1.0.0 • 64-bit</div>
+                <div class="platform-name">Download for Windows</div>
+                <div class="platform-version">v1.0.0 • 64-bit • Free</div>
               </div>
             </a>
             <a href="https://github.com/jamditis/yap" class="platform-btn">
@@ -867,11 +1102,12 @@
                 <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
               </svg>
               <div class="platform-info">
-                <div class="platform-name">Build from Source</div>
-                <div class="platform-version">macOS • Linux</div>
+                <div class="platform-name">View on GitHub</div>
+                <div class="platform-version">Star the repo • Contribute</div>
               </div>
             </a>
           </div>
+          <p class="download-note">Works with Google Gemini API or local NVIDIA Parakeet model for offline use.</p>
         </div>
       </div>
     </section>
@@ -890,5 +1126,119 @@
       </div>
     </div>
   </footer>
+
+  <script>
+    // Demo scenarios
+    const demos = {
+      git: [
+        { type: 'voice', text: '"show me the git status"' },
+        { type: 'command', text: 'git status' },
+        { type: 'output', text: 'On branch main\nYour branch is up to date with \'origin/main\'.' },
+        { type: 'voice', text: '"commit everything with message fixing auth bug"' },
+        { type: 'command', text: 'git add -A && git commit -m "fix: resolve authentication bug"' },
+      ],
+      docker: [
+        { type: 'voice', text: '"show all running containers"' },
+        { type: 'command', text: 'docker ps' },
+        { type: 'output', text: 'CONTAINER ID   IMAGE          STATUS\na1b2c3d4e5f6   nginx:latest   Up 2 hours' },
+        { type: 'voice', text: '"stop the nginx container"' },
+        { type: 'command', text: 'docker stop a1b2c3d4e5f6' },
+      ],
+      npm: [
+        { type: 'voice', text: '"install react and typescript"' },
+        { type: 'command', text: 'npm install react typescript @types/react' },
+        { type: 'output', text: 'added 5 packages in 2.3s' },
+        { type: 'voice', text: '"run the dev server"' },
+        { type: 'command', text: 'npm run dev' },
+      ],
+      files: [
+        { type: 'voice', text: '"find all typescript files in source"' },
+        { type: 'command', text: 'find src -name "*.ts" -type f' },
+        { type: 'output', text: 'src/index.ts\nsrc/utils/helpers.ts\nsrc/components/App.ts' },
+        { type: 'voice', text: '"create a new components folder"' },
+        { type: 'command', text: 'mkdir -p src/components' },
+      ]
+    };
+
+    let currentDemo = 'git';
+    let animationTimeout = null;
+
+    function createLine(item) {
+      const line = document.createElement('div');
+      line.className = 'terminal-line';
+
+      if (item.type === 'voice') {
+        line.innerHTML = `<span class="prompt">🎤</span> <span class="voice-input">${item.text}</span>`;
+      } else if (item.type === 'command') {
+        line.innerHTML = `<span class="prompt">$</span> <span class="command">${item.text}</span>`;
+      } else if (item.type === 'output') {
+        line.className = 'terminal-line output';
+        line.innerHTML = item.text.replace(/\n/g, '<br>');
+      }
+
+      return line;
+    }
+
+    function runDemo(demoName) {
+      // Clear any existing animation
+      if (animationTimeout) {
+        clearTimeout(animationTimeout);
+      }
+
+      const terminal = document.getElementById('terminal-body');
+      terminal.innerHTML = '';
+
+      const demo = demos[demoName];
+      let delay = 300;
+
+      demo.forEach((item, index) => {
+        const line = createLine(item);
+        terminal.appendChild(line);
+
+        animationTimeout = setTimeout(() => {
+          line.classList.add('visible');
+          if (item.type === 'voice' || item.type === 'command') {
+            line.classList.add('typing');
+            setTimeout(() => line.classList.remove('typing'), 800);
+          }
+        }, delay);
+
+        delay += item.type === 'output' ? 600 : 1000;
+      });
+
+      // Add cursor at the end
+      animationTimeout = setTimeout(() => {
+        const cursorLine = document.createElement('div');
+        cursorLine.className = 'terminal-line visible';
+        cursorLine.innerHTML = '<span class="prompt">$</span> <span class="cursor"></span>';
+        terminal.appendChild(cursorLine);
+      }, delay);
+    }
+
+    // Demo button handlers
+    document.querySelectorAll('.demo-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentDemo = btn.dataset.demo;
+        runDemo(currentDemo);
+      });
+    });
+
+    // Replay button
+    document.getElementById('replay-btn').addEventListener('click', () => {
+      runDemo(currentDemo);
+    });
+
+    // Run initial demo when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      runDemo('git');
+    });
+
+    // Also run if script loads after DOM
+    if (document.readyState !== 'loading') {
+      runDemo('git');
+    }
+  </script>
 </body>
 </html>
