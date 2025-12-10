@@ -39,16 +39,20 @@ export class GeminiLiveService {
           base64Audio = audioInput;
       }
 
-      // Stricter Agent Prompt
+      // Stricter Agent Prompt (now the stable gemini-pro)
       const isAgent = mode === DictationMode.DEV_CHAT;
       const prompt = isAgent 
-        ? `Listen to this audio. 
+        ? `Given the following audio, determine if it represents a clear, actionable command for a developer's CLI.
            Rules:
-           1. If the audio is silent, background noise, or unintelligible, output NOTHING (empty string).
-           2. If it contains a request for a terminal command, output ONLY the code (e.g., 'git status').
-           3. If it is general speech, transcribe it textually.
-           4. Do NOT add markdown blocks.`
-        : `Transcribe this audio exactly as spoken. If silent/noise, return empty string.`;
+           1. If the audio is clearly an actionable command (e.g., "git status", "run tests", "deploy app"), output ONLY the command as plain text. Do NOT add any conversational filler, markdown formatting like backticks, or explanations.
+           2. If the audio is general speech, background noise, silence, or not a clear command, output NOTHING (an empty string).
+           3. Aim for brevity and directness.
+           Example 1: Audio "Git status" -> Output "git status"
+           Example 2: Audio "Please tell me what the status of the repository is" -> Output "git status"
+           Example 3: Audio "Hello there" -> Output "" (empty string)
+           Example 4: Audio of silence -> Output "" (empty string)
+           `
+        : `Transcribe this audio exactly as spoken. If the audio contains only silence or background noise, return an empty string.`;
 
       const response = await this.ai.models.generateContent({
         model: modelName,
@@ -65,15 +69,20 @@ export class GeminiLiveService {
 
       const text = response.text?.trim() || "";
       
-      // Calculate Cost
+      // Calculate Cost (Audio)
       const seconds = durationMs / 1000;
-      let costPerSec = 0;
-      if (modelName.includes('flash')) costPerSec = 0.00002; // ~$0.07/hour
-      if (modelName.includes('pro')) costPerSec = 0.002;   // ~$7.00/hour
-      
-      const estimatedCost = (seconds * costPerSec).toFixed(6);
+      let estimatedCost = "0.00";
 
-      return { text, cost: `$${estimatedCost}` };
+      if (modelName.includes('flash')) {
+          // Verified: 32 tokens/sec, $2.10 per 1M audio tokens
+          const tokens = seconds * 32;
+          const cost = (tokens / 1000000) * 2.10;
+          estimatedCost = "$" + cost.toFixed(6);
+      } else {
+          estimatedCost = "Calculated";
+      }
+
+      return { text, cost: estimatedCost };
 
     } catch (error: any) {
       console.error("Transcription Error:", error);
@@ -92,14 +101,15 @@ export class GeminiLiveService {
           });
 
           if (!res.ok) {
-              throw new Error("Local server error (ensure server.py is running on port 8002)");
+              const errorText = await res.text();
+              throw new Error(`Local server returned status ${res.status}: ${errorText || 'Unknown error'}. Ensure server.py is running on port 8002 and model is loaded.`);
           }
 
           const data = await res.json();
           if (data.error) throw new Error(data.error);
           return data.text || "";
       } catch (e: any) {
-          throw new Error("Local Parakeet Error: " + e.message);
+          throw new Error("Local Parakeet Error: " + e.message + ". Check server console for details.");
       }
   }
 }

@@ -6,7 +6,7 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) { app.quit(); }
 
 let mainWindow;
-let tray;
+let tray; // Re-declare tray
 let isQuitting = false;
 let pythonServerProcess;
 
@@ -41,6 +41,11 @@ function killPythonServer() {
 function createWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
+  // Determine icon path for both dev and production
+  const iconPath = app.isPackaged 
+    ? path.join(process.resourcesPath, 'assets', 'yap.ico') 
+    : path.join(__dirname, '../assets', 'yap.ico');
+
   mainWindow = new BrowserWindow({
     width: 400, 
     height: 600,
@@ -49,9 +54,11 @@ function createWindow() {
     frame: true,  
     transparent: false, 
     backgroundColor: '#0c0c0c', 
-    alwaysOnTop: true, 
+    alwaysOnTop: true, // Restored "always on top"
     resizable: true, 
     show: false, 
+    skipTaskbar: true, // Restored "skip taskbar"
+    icon: iconPath, // Set window icon
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -92,17 +99,15 @@ function registerShortcuts() {
 }
 
 function createTray() {
-  let iconPath;
-  if (app.isPackaged) {
-      iconPath = path.join(process.resourcesPath, 'assets', 'tray.png');
-  } else {
-      iconPath = path.join(__dirname, '../assets/tray.png');
-  }
+  const iconPath = app.isPackaged 
+    ? path.join(process.resourcesPath, 'assets', 'yap.ico') 
+    : path.join(__dirname, '../assets', 'yap.ico');
 
   let icon = nativeImage.createFromPath(iconPath);
   if (icon.isEmpty()) {
-      console.log("Icon empty, trying resize...");
-      icon = icon.resize({ width: 16, height: 16 });
+      console.error("Failed to load tray icon from", iconPath);
+      // Fallback to empty or a generic one if you have it
+      icon = nativeImage.createEmpty(); 
   }
   
   tray = new Tray(icon);
@@ -120,9 +125,10 @@ function createTray() {
   });
 }
 
+
 app.whenReady().then(() => {
   createWindow();
-  createTray();
+  createTray(); 
   registerShortcuts();
   startPythonServer(); 
 
@@ -142,10 +148,6 @@ ipcMain.handle('paste-text', async (event, text) => {
     clipboard.writeText(text); // Use Native Electron Clipboard
     
     // Shift+Insert (+{INSERT}) works in terminals. 
-    // ^v (Ctrl+V) works in GUI apps.
-    // Ideally we'd detect the app, but let's send BOTH? No, that causes double paste.
-    // Let's stick to Shift+Insert for "Terminal Mode".
-    
     const psCommand = `
       Add-Type -AssemblyName System.Windows.Forms
       [System.Windows.Forms.SendKeys]::SendWait('+{INSERT}')
