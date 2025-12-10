@@ -10,25 +10,69 @@ let tray; // Re-declare tray
 let isQuitting = false;
 let pythonServerProcess;
 
+let parakeetServerReady = false;
+
 function startPythonServer() {
   let scriptPath;
+  let cwd;
   if (app.isPackaged) {
     scriptPath = path.join(process.resourcesPath, 'local_server', 'server.py');
+    cwd = path.join(process.resourcesPath, 'local_server');
   } else {
     scriptPath = path.join(__dirname, '../local_server/server.py');
+    cwd = path.join(__dirname, '../local_server');
   }
 
-  console.log("Starting Python Server at:", scriptPath);
-  
-  pythonServerProcess = spawn('python', [scriptPath]);
+  console.log("[Parakeet] Starting server at:", scriptPath);
+  console.log("[Parakeet] Working directory:", cwd);
 
-  pythonServerProcess.stdout.on('data', (data) => {
-    console.log(`[Parakeet]: ${data}`);
-  });
+  // Check if file exists first
+  const fs = require('fs');
+  if (!fs.existsSync(scriptPath)) {
+    console.error("[Parakeet] server.py not found at:", scriptPath);
+    return;
+  }
 
-  pythonServerProcess.stderr.on('data', (data) => {
-    console.error(`[Parakeet Err]: ${data}`);
-  });
+  try {
+    pythonServerProcess = spawn('python', [scriptPath], {
+      cwd: cwd,
+      env: { ...process.env },
+      shell: true  // Helps find python on Windows PATH
+    });
+
+    pythonServerProcess.stdout.on('data', (data) => {
+      const msg = data.toString();
+      console.log(`[Parakeet]: ${msg}`);
+      if (msg.includes('Uvicorn running') || msg.includes('Started server')) {
+        parakeetServerReady = true;
+        console.log("[Parakeet] Server is ready!");
+      }
+    });
+
+    pythonServerProcess.stderr.on('data', (data) => {
+      const msg = data.toString();
+      // Uvicorn logs to stderr by default, so check for startup messages
+      if (msg.includes('Uvicorn running') || msg.includes('Started server')) {
+        parakeetServerReady = true;
+        console.log("[Parakeet] Server is ready!");
+      }
+      console.error(`[Parakeet Err]: ${msg}`);
+    });
+
+    pythonServerProcess.on('error', (err) => {
+      console.error("[Parakeet] Failed to start:", err.message);
+      if (err.message.includes('ENOENT')) {
+        console.error("[Parakeet] Python not found. Make sure Python is in your PATH.");
+      }
+    });
+
+    pythonServerProcess.on('exit', (code, signal) => {
+      console.log(`[Parakeet] Process exited with code ${code}, signal ${signal}`);
+      parakeetServerReady = false;
+    });
+  } catch (err) {
+    console.error("[Parakeet] Spawn error:", err);
+  }
 }
 
 function killPythonServer() {
@@ -99,17 +143,27 @@ function registerShortcuts() {
 }
 
 function createTray() {
-  const iconPath = app.isPackaged 
-    ? path.join(process.resourcesPath, 'assets', 'yap.ico') 
+  // Try PNG first for tray (better cross-platform), fall back to ICO
+  const pngPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets', 'yap.png')
+    : path.join(__dirname, '../assets', 'yap.png');
+  const icoPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets', 'yap.ico')
     : path.join(__dirname, '../assets', 'yap.ico');
 
-  let icon = nativeImage.createFromPath(iconPath);
+  let icon = nativeImage.createFromPath(pngPath);
   if (icon.isEmpty()) {
-      console.error("Failed to load tray icon from", iconPath);
-      // Fallback to empty or a generic one if you have it
-      icon = nativeImage.createEmpty(); 
+      console.log("PNG not found, trying ICO:", pngPath);
+      icon = nativeImage.createFromPath(icoPath);
   }
-  
+  if (icon.isEmpty()) {
+      console.error("Failed to load tray icon from both paths");
+      icon = nativeImage.createEmpty();
+  } else {
+      // Resize for tray - Windows tray icons should be 16x16 or 32x32
+      icon = icon.resize({ width: 16, height: 16 });
+  }
+
   tray = new Tray(icon);
   tray.setToolTip('Yap Voice Assistant');
   
