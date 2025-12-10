@@ -1,6 +1,24 @@
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, dialog, shell, globalShortcut, clipboard } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
+
+// Play system notification sounds
+function playSound(type) {
+    // Windows system sounds - using actual file names from C:\Windows\Media
+    const sounds = {
+        start: 'Windows Hardware Insert',    // Recording started
+        stop: 'Windows Hardware Remove',     // Recording stopped
+        success: 'Windows Notify',           // Success
+        error: 'Windows Critical Stop'       // Error
+    };
+    const soundName = sounds[type] || 'notify';
+    const soundPath = `C:\\Windows\\Media\\${soundName}.wav`;
+
+    // Use PowerShell to play sound asynchronously
+    exec(`powershell -c "(New-Object Media.SoundPlayer '${soundPath}').Play()"`, { windowsHide: true }, (err) => {
+        if (err) console.error('[Yap] Sound error:', err.message);
+    });
+}
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) { app.quit(); }
@@ -91,18 +109,18 @@ function createWindow() {
     : path.join(__dirname, '../assets', 'yap.ico');
 
   mainWindow = new BrowserWindow({
-    width: 400, 
+    width: 400,
     height: 600,
-    x: width - 420, 
+    x: width - 420,
     y: 50,
-    frame: true,  
-    transparent: false, 
-    backgroundColor: '#0c0c0c', 
-    alwaysOnTop: true, // Restored "always on top"
-    resizable: true, 
-    show: false, 
-    skipTaskbar: true, // Restored "skip taskbar"
-    icon: iconPath, // Set window icon
+    frame: true,
+    transparent: false,
+    backgroundColor: '#0c0c0c',
+    alwaysOnTop: true,
+    resizable: true,
+    show: false,  // Start hidden
+    skipTaskbar: true,
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -117,8 +135,11 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
+  // Start minimized to tray - don't show window on launch
+  // Window stays hidden until user presses Alt+H to show settings
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    // Don't show - stay in tray only
+    console.log('[Yap] Ready - running in system tray. Press Alt+S to record, Alt+H to show window.');
   });
 
   mainWindow.on('close', (event) => {
@@ -130,18 +151,36 @@ function createWindow() {
   });
 }
 
+let isCurrentlyRecording = false;
+
+function updateTrayStatus(recording) {
+    isCurrentlyRecording = recording;
+    if (tray) {
+        tray.setToolTip(recording ? 'Yap - Recording...' : 'Yap Voice Assistant');
+    }
+}
+
 function registerShortcuts() {
+    // Alt+S: Toggle recording (works from any window, stays hidden)
     globalShortcut.register('Alt+S', () => {
         if (mainWindow) {
             mainWindow.webContents.send('toggle-listening');
-            mainWindow.show(); 
+            // Don't show window - stay in tray mode
+            console.log('[Yap] Alt+S pressed - toggling recording');
         }
     });
 
+    // Alt+H: Show/hide settings window
     globalShortcut.register('Alt+H', () => {
         if (mainWindow) {
-            if (mainWindow.isVisible()) mainWindow.hide();
-            else mainWindow.show();
+            if (mainWindow.isVisible()) {
+                mainWindow.hide();
+                console.log('[Yap] Window hidden');
+            } else {
+                mainWindow.show();
+                mainWindow.focus();
+                console.log('[Yap] Window shown');
+            }
         }
     });
 }
@@ -201,21 +240,90 @@ app.on('will-quit', () => {
 });
 
 // --- IPC HANDLERS ---
+
+// Update tray status when recording state changes
+ipcMain.on('recording-status', (event, isRecording) => {
+    updateTrayStatus(isRecording);
+    playSound(isRecording ? 'start' : 'stop');
+    console.log(`[Yap] Recording: ${isRecording}`);
+});
+
+// Play a sound from renderer
+ipcMain.on('play-sound', (event, type) => {
+    playSound(type);
+});
+
+// Copy text to clipboard only (for manual paste with right-click)
+ipcMain.handle('copy-text', async (event, text) => {
+    try {
+        clipboard.writeText(text);
+        console.log('[Yap] Text copied to clipboard');
+        return { success: true };
+    } catch (error) {
+        console.error("Copy failed:", error);
+        return { success: false, error: error.message };
+    }
+});
+
+// Windows Speech Recognition - runs PowerShell script for local dictation
+ipcMain.handle('windows-speech-recognize', async (event, timeoutSeconds = 10) => {
+    return new Promise((resolve) => {
+        const scriptPath = app.isPackaged
+            ? path.join(process.resourcesPath, 'local_server', 'windows_speech.ps1')
+            : path.join(__dirname, '../local_server/windows_speech.ps1');
+
+        console.log('[Yap] Starting Windows Speech Recognition...');
+        playSound('start');
+
+        const ps = spawn('powershell', [
+            '-ExecutionPolicy', 'Bypass',
+            '-File', scriptPath,
+            '-TimeoutSeconds', timeoutSeconds.toString()
+        ], { windowsHide: true });
+
+        let output = '';
+        let error = '';
+
+        ps.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+
+        ps.stderr.on('data', (data) => {
+            error += data.toString();
+        });
+
+        ps.on('close', (code) => {
+            playSound('stop');
+            const text = output.trim();
+            if (text) {
+                console.log('[Yap] Windows Speech result:', text);
+                resolve({ success: true, text });
+            } else if (error) {
+                console.error('[Yap] Windows Speech error:', error);
+                resolve({ success: false, error });
+            } else {
+                resolve({ success: true, text: '' });
+            }
+        });
+
+        ps.on('error', (err) => {
+            console.error('[Yap] Windows Speech spawn error:', err);
+            playSound('error');
+            resolve({ success: false, error: err.message });
+        });
+    });
+});
+
+// Copy text to clipboard and notify - user right-clicks to paste in Claude Code
+// (Auto right-click doesn't work well because Claude Code copies selection on right-click)
 ipcMain.handle('paste-text', async (event, text) => {
   try {
-    clipboard.writeText(text); // Use Native Electron Clipboard
-    
-    // Shift+Insert (+{INSERT}) works in terminals. 
-    const psCommand = `
-      Add-Type -AssemblyName System.Windows.Forms
-      [System.Windows.Forms.SendKeys]::SendWait('+{INSERT}')
-      Start-Sleep -Milliseconds 50
-      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-    `;
-    spawn('powershell', ['-Command', psCommand]);
+    clipboard.writeText(text);
+    console.log('[Yap] Text ready in clipboard:', text.substring(0, 50) + '...');
+    // User will right-click to paste in Claude Code
     return { success: true };
   } catch (error) {
-    console.error("Paste failed:", error);
+    console.error("Clipboard write failed:", error);
     return { success: false, error: error.message };
   }
 }); 

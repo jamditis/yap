@@ -30,6 +30,13 @@ export class GeminiLiveService {
         return { text, cost: "$0.00 (Local)" };
     }
 
+    // --- Windows Speech Path (handled in renderer via IPC) ---
+    if (modelName === 'windows-speech') {
+        // This is handled differently - the renderer calls the main process
+        // which runs the PowerShell script. This path shouldn't be reached.
+        throw new Error("Windows Speech should be handled via IPC, not here");
+    }
+
     // --- Gemini API Path ---
     try {
       let base64Audio = '';
@@ -39,19 +46,35 @@ export class GeminiLiveService {
           base64Audio = audioInput;
       }
 
-      // Stricter Agent Prompt (now the stable gemini-pro)
+      // Agent mode converts natural language to CLI commands
       const isAgent = mode === DictationMode.DEV_CHAT;
-      const prompt = isAgent 
-        ? `Given the following audio, determine if it represents a clear, actionable command for a developer's CLI.
-           Rules:
-           1. If the audio is clearly an actionable command (e.g., "git status", "run tests", "deploy app"), output ONLY the command as plain text. Do NOT add any conversational filler, markdown formatting like backticks, or explanations.
-           2. If the audio is general speech, background noise, silence, or not a clear command, output NOTHING (an empty string).
-           3. Aim for brevity and directness.
-           Example 1: Audio "Git status" -> Output "git status"
-           Example 2: Audio "Please tell me what the status of the repository is" -> Output "git status"
-           Example 3: Audio "Hello there" -> Output "" (empty string)
-           Example 4: Audio of silence -> Output "" (empty string)
-           `
+      const prompt = isAgent
+        ? `You are a CLI command translator. Your ONLY job is to convert spoken natural language into executable terminal/command prompt commands.
+
+CRITICAL RULES:
+1. Output ONLY the raw command - no explanations, no markdown, no backticks, no quotes around the output
+2. Convert natural speech into the appropriate CLI command
+3. If the speech is unclear, silence, or not command-related, output an empty string
+
+EXAMPLES:
+- "git status" → git status
+- "show me the git status" → git status
+- "list all files" → ls -la
+- "list files in the current directory" → dir
+- "make a new folder called test" → mkdir test
+- "run the dev server" → npm run dev
+- "install lodash" → npm install lodash
+- "show running processes" → ps aux
+- "what's my current directory" → pwd
+- "go to the desktop folder" → cd ~/Desktop
+- "run python script called main" → python main.py
+- "build the project" → npm run build
+- "start docker compose" → docker-compose up
+- "check disk space" → df -h
+- "hello there" → (empty - not a command)
+- (silence) → (empty)
+
+Now convert this audio to a CLI command:`
         : `Transcribe this audio exactly as spoken. If the audio contains only silence or background noise, return an empty string.`;
 
       const response = await this.ai.models.generateContent({

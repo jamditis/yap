@@ -1,7 +1,33 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { DictationMode, TranscriptItem, CliWrapperType } from '../types';
 import { GeminiLiveService } from '../services/geminiLiveService';
 import { blobToBase64, getMicrophones } from '../utils/audioUtils';
+
+// Audio visualizer component
+const AudioWaveform: React.FC<{ audioLevel: number; isRecording: boolean }> = ({ audioLevel, isRecording }) => {
+  const bars = 12;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <div className="flex items-center justify-center gap-[2px]" style={{ transform: 'rotate(-90deg)' }}>
+        {Array.from({ length: bars }).map((_, i) => {
+          const angle = (i / bars) * Math.PI;
+          const heightMultiplier = Math.sin(angle) * 0.5 + 0.5;
+          const targetHeight = isRecording ? Math.max(4, audioLevel * heightMultiplier * 28) : 4;
+          return (
+            <div
+              key={i}
+              className="w-[3px] rounded-full transition-all duration-75"
+              style={{
+                height: `${targetHeight}px`,
+                backgroundColor: isRecording ? `rgba(0, 255, 65, ${0.4 + audioLevel * 0.6})` : 'rgba(0, 255, 65, 0.2)',
+              }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 // --- Icons ---
 const MicIcon = () => (
@@ -42,7 +68,8 @@ export const DictationInterface: React.FC = () => {
   
   const [toast, setToast] = useState<{msg: string, type: 'info' | 'error' | 'success'} | null>(null);
   const [lastCopiedId, setLastCopiedId] = useState<string | null>(null);
-  
+  const [audioLevel, setAudioLevel] = useState(0);
+
   const serviceRef = useRef<GeminiLiveService | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -50,6 +77,11 @@ export const DictationInterface: React.FC = () => {
   const isRecordingRef = useRef(isRecording);
   const selectedModelRef = useRef(selectedModel);
   const modeRef = useRef(mode);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number>(0);
+  const speechRecognitionRef = useRef<any>(null);
+  const [liveTranscript, setLiveTranscript] = useState<string>('');
 
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
   useEffect(() => { selectedModelRef.current = selectedModel; }, [selectedModel]);
@@ -90,14 +122,28 @@ export const DictationInterface: React.FC = () => {
       }
   }, []);
 
-  const handleCopy = useCallback((text: string, id?: string) => {
+  const handleCopy = useCallback(async (text: string, id?: string) => {
     if (!text) return;
     // @ts-ignore
     if (window.electron && terminalMode) {
-        // @ts-ignore
-        window.electron.pasteText(text);
-        if (id) setLastCopiedId(id);
-        showToast("Pasted to Terminal", 'success');
+        try {
+            // @ts-ignore
+            const result = await window.electron.pasteText(text);
+            if (id) setLastCopiedId(id);
+            if (result?.success) {
+                // @ts-ignore
+                window.electron.playSound?.('success');
+                showToast("Ready - right-click to paste", 'success');
+            } else {
+                // @ts-ignore
+                window.electron.playSound?.('error');
+                showToast("Paste failed", 'error');
+            }
+        } catch (e) {
+            // @ts-ignore
+            window.electron.playSound?.('error');
+            showToast("Paste error", 'error');
+        }
         return;
     }
     navigator.clipboard.writeText(text).then(() => {
@@ -107,12 +153,208 @@ export const DictationInterface: React.FC = () => {
     });
   }, [terminalMode]);
 
-  const startRecording = async () => {
+  // Web Speech API for live local transcription
+  const startWebSpeechRecognition = async () => {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+          showToast("Speech recognition not supported in this environment", 'error');
+          // @ts-ignore
+          window.electron?.playSound?.('error');
+          console.error('[Yap] SpeechRecognition API not available');
+          return;
+      }
+      console.log('[Yap] Starting Web Speech recognition...');
+
+      // Get mic stream for audio visualization
+      const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined }
+      });
+
+      // Set up audio analyzer for visualization
+      audioContextRef.current = new AudioContext();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      source.connect(analyserRef.current);
+
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      const updateLevel = () => {
+          if (analyserRef.current && isRecordingRef.current) {
+              analyserRef.current.getByteFrequencyData(dataArray);
+              const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+              setAudioLevel(average / 255);
+              animationFrameRef.current = requestAnimationFrame(updateLevel);
+          }
+      };
+      updateLevel();
+
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      let finalTranscript = '';
+
+      recognition.onresult = (event: any) => {
+          let interimTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                  finalTranscript += transcript + ' ';
+              } else {
+                  interimTranscript = transcript;
+              }
+          }
+          setLiveTranscript(finalTranscript + interimTranscript);
+      };
+
+      recognition.onend = () => {
+          // Clean up
+          stream.getTracks().forEach(t => t.stop());
+          cancelAnimationFrame(animationFrameRef.current);
+          if (audioContextRef.current) {
+              audioContextRef.current.close();
+              audioContextRef.current = null;
+          }
+          setAudioLevel(0);
+          setIsRecording(false);
+          setIsProcessing(false);
+
+          const text = finalTranscript.trim();
+          if (text) {
+              const newItem: TranscriptItem = {
+                  id: Date.now().toString(),
+                  text: text,
+                  originalText: text,
+                  source: 'model',
+                  timestamp: Date.now(),
+                  isFinal: true,
+                  model: 'web-speech',
+                  cost: '$0.00 (Local)'
+              };
+              setTranscripts(prev => [newItem, ...prev].slice(0, 30));
+
+              if (autoCopy) {
+                  const formatted = wrapText(text, cliWrapper);
+                  handleCopy(formatted, newItem.id);
+              }
+          }
+          setLiveTranscript('');
+      };
+
+      recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          if (event.error !== 'no-speech') {
+              showToast(`Speech error: ${event.error}`, 'error');
+          }
+      };
+
+      speechRecognitionRef.current = recognition;
+      // Store stream reference for cleanup
+      (recognition as any)._stream = stream;
+      recognition.start();
+      setIsRecording(true);
+      // @ts-ignore - Notify main process for tray status
+      if (window.electron?.setRecordingStatus) window.electron.setRecordingStatus(true);
+      setLiveTranscript('');
+      showToast("Listening (Live)...", 'info');
+  };
+
+  const stopWebSpeechRecognition = () => {
+      if (speechRecognitionRef.current) {
+          speechRecognitionRef.current.stop();
+          speechRecognitionRef.current = null;
+      }
+  };
+
+  // Windows Speech Recognition - truly local, no internet required
+  const startWindowsSpeechRecognition = async () => {
+      // @ts-ignore
+      if (!window.electron?.windowsSpeechRecognize) {
+          showToast("Windows Speech not available", 'error');
+          return;
+      }
+
+      setIsRecording(true);
+      // @ts-ignore
+      if (window.electron?.setRecordingStatus) window.electron.setRecordingStatus(true);
+      showToast("Listening (Windows Speech)...", 'info');
+
       try {
-          const stream = await navigator.mediaDevices.getUserMedia({ 
-              audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined } 
+          // @ts-ignore - Call main process to run PowerShell speech recognition
+          const result = await window.electron.windowsSpeechRecognize(10); // 10 second timeout
+
+          setIsRecording(false);
+          // @ts-ignore
+          if (window.electron?.setRecordingStatus) window.electron.setRecordingStatus(false);
+
+          if (result.success && result.text) {
+              const newItem: TranscriptItem = {
+                  id: Date.now().toString(),
+                  text: result.text,
+                  originalText: result.text,
+                  source: 'model',
+                  timestamp: Date.now(),
+                  isFinal: true,
+                  model: 'windows-speech',
+                  cost: '$0.00 (Local)'
+              };
+              setTranscripts(prev => [newItem, ...prev].slice(0, 30));
+
+              if (autoCopy) {
+                  const formatted = wrapText(result.text, cliWrapper);
+                  handleCopy(formatted, newItem.id);
+              }
+          } else if (result.error) {
+              showToast(`Speech error: ${result.error}`, 'error');
+          } else {
+              showToast("No speech detected", 'info');
+          }
+      } catch (e: any) {
+          setIsRecording(false);
+          // @ts-ignore
+          if (window.electron?.setRecordingStatus) window.electron.setRecordingStatus(false);
+          showToast(`Error: ${e.message}`, 'error');
+      }
+  };
+
+  const startRecording = async () => {
+      // Use Web Speech API for local model (deprecated - requires internet)
+      if (selectedModel === 'web-speech') {
+          await startWebSpeechRecognition();
+          return;
+      }
+
+      // Use Windows Speech Recognition (truly local, no internet)
+      if (selectedModel === 'windows-speech') {
+          await startWindowsSpeechRecognition();
+          return;
+      }
+
+      try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+              audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined }
           });
-          
+
+          // Set up audio analyzer for visualization
+          audioContextRef.current = new AudioContext();
+          analyserRef.current = audioContextRef.current.createAnalyser();
+          analyserRef.current.fftSize = 256;
+          const source = audioContextRef.current.createMediaStreamSource(stream);
+          source.connect(analyserRef.current);
+
+          // Start analyzing audio levels
+          const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+          const updateLevel = () => {
+              if (analyserRef.current && isRecordingRef.current) {
+                  analyserRef.current.getByteFrequencyData(dataArray);
+                  const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+                  setAudioLevel(average / 255); // Normalize to 0-1
+                  animationFrameRef.current = requestAnimationFrame(updateLevel);
+              }
+          };
+          updateLevel();
+
           const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
           mediaRecorderRef.current = recorder;
           chunksRef.current = [];
@@ -124,6 +366,14 @@ export const DictationInterface: React.FC = () => {
 
           recorder.onstop = async () => {
               stream.getTracks().forEach(t => t.stop());
+              // Clean up audio analyzer
+              cancelAnimationFrame(animationFrameRef.current);
+              if (audioContextRef.current) {
+                  audioContextRef.current.close();
+                  audioContextRef.current = null;
+              }
+              setAudioLevel(0);
+
               const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
               const duration = Date.now() - startTimeRef.current;
               await processAudio(blob, duration);
@@ -131,6 +381,8 @@ export const DictationInterface: React.FC = () => {
 
           recorder.start();
           setIsRecording(true);
+          // @ts-ignore - Notify main process for tray status
+          if (window.electron?.setRecordingStatus) window.electron.setRecordingStatus(true);
           showToast("Listening...", 'info');
           setError(null);
       } catch (e: any) {
@@ -141,6 +393,15 @@ export const DictationInterface: React.FC = () => {
   };
 
   const stopRecording = () => {
+      // @ts-ignore - Notify main process for tray status
+      if (window.electron?.setRecordingStatus) window.electron.setRecordingStatus(false);
+
+      // Handle Web Speech API
+      if (speechRecognitionRef.current) {
+          stopWebSpeechRecognition();
+          return;
+      }
+      // Handle MediaRecorder (Gemini models)
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
           mediaRecorderRef.current.stop();
           setIsRecording(false);
@@ -157,6 +418,15 @@ export const DictationInterface: React.FC = () => {
       try {
           const currentModel = selectedModelRef.current;
           const currentMode = modeRef.current;
+
+          // Web Speech is handled separately via its own recognition.onend
+          if (currentModel === 'web-speech') {
+              console.log('[Yap] Skipping processAudio for web-speech model');
+              setIsProcessing(false);
+              return;
+          }
+
+          console.log('[Yap] Processing audio with model:', currentModel);
 
           // Pass durationMs to service to calculate cost
           const result = await serviceRef.current?.transcribeAudio(blob, currentModel, currentMode, durationMs);
@@ -214,18 +484,41 @@ export const DictationInterface: React.FC = () => {
         </div>
 
         <div className="flex flex-col items-center justify-center min-h-[140px] mb-4">
-            <button
-                onClick={toggleRecording}
-                disabled={isProcessing}
-                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 ${
-                    isProcessing ? 'bg-gray-800 border-4 border-gray-700 cursor-wait' :
-                    isRecording 
-                    ? 'bg-red-500/10 text-red-500 border-4 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)] scale-110' 
-                    : 'bg-terminal-green/10 text-terminal-green border-4 border-terminal-green shadow-[0_0_15px_rgba(0,255,65,0.2)] hover:scale-105'
-                }`}
-            >
-                {isProcessing ? <SpinnerIcon /> : isRecording ? <StopIcon /> : <MicIcon />}
-            </button>
+            <div className="relative">
+                {/* Outer pulsing ring when recording with audio */}
+                {isRecording && (
+                    <div
+                        className="absolute inset-[-8px] rounded-full border-2 border-terminal-green/30 animate-ping"
+                        style={{ opacity: audioLevel * 0.5 }}
+                    />
+                )}
+                {/* Audio level ring */}
+                {isRecording && (
+                    <div
+                        className="absolute inset-[-4px] rounded-full border-2 transition-all duration-75"
+                        style={{
+                            borderColor: `rgba(0, 255, 65, ${0.2 + audioLevel * 0.6})`,
+                            transform: `scale(${1 + audioLevel * 0.15})`,
+                        }}
+                    />
+                )}
+                <button
+                    onClick={toggleRecording}
+                    disabled={isProcessing}
+                    className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 ${
+                        isProcessing ? 'bg-gray-800 border-4 border-gray-700 cursor-wait' :
+                        isRecording
+                        ? 'bg-terminal-green/10 text-terminal-green border-4 border-terminal-green shadow-[0_0_30px_rgba(0,255,65,0.4)]'
+                        : 'bg-terminal-green/10 text-terminal-green border-4 border-terminal-green shadow-[0_0_15px_rgba(0,255,65,0.2)] hover:scale-105'
+                    }`}
+                    style={isRecording ? { transform: `scale(${1 + audioLevel * 0.08})` } : undefined}
+                >
+                    {isRecording && <AudioWaveform audioLevel={audioLevel} isRecording={isRecording} />}
+                    <span className="relative z-10">
+                        {isProcessing ? <SpinnerIcon /> : isRecording ? <StopIcon /> : <MicIcon />}
+                    </span>
+                </button>
+            </div>
             <div className="mt-3 text-xs font-mono text-gray-500 uppercase tracking-widest">
                 {isProcessing ? "TRANSCRIBING..." : isRecording ? "RECORDING..." : "READY"}
             </div>
@@ -249,14 +542,22 @@ export const DictationInterface: React.FC = () => {
             {/* Model Select */}
             <div className="flex flex-col">
                 <label className="text-[10px] text-gray-500 font-bold mb-1">MODEL</label>
-                <select 
-                    value={selectedModel} 
-                    onChange={(e) => setSelectedModel(e.target.value)}
+                <select
+                    value={selectedModel}
+                    onChange={(e) => {
+                        setSelectedModel(e.target.value);
+                        // Force RAW mode for local models since they can't do instruction-following
+                        if ((e.target.value === 'parakeet-local' || e.target.value === 'windows-speech') && mode === DictationMode.DEV_CHAT) {
+                            setMode(DictationMode.RAW);
+                            showToast("Local models only support RAW mode", 'info');
+                        }
+                    }}
                     className="bg-gray-900 border border-gray-800 text-xs rounded p-2 text-gray-300 focus:border-terminal-green focus:outline-none"
                 >
                     <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
                     <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                    <option value="parakeet-local">Parakeet (Local)</option>
+                    <option value="parakeet-local">Parakeet (Local/GPU)</option>
+                    <option value="windows-speech">Windows Speech (Local/CPU)</option>
                 </select>
             </div>
         </div>
@@ -270,14 +571,37 @@ export const DictationInterface: React.FC = () => {
                 className={`flex-1 py-2 text-[10px] font-bold border rounded transition-colors ${terminalMode ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 'border-gray-800 text-gray-600'}`}>
                 PASTE: {terminalMode ? 'ON' : 'OFF'}
              </button>
-             <button onClick={() => setMode(mode === DictationMode.RAW ? DictationMode.DEV_CHAT : DictationMode.RAW)} 
-                className={`flex-1 py-2 text-[10px] font-bold border rounded transition-colors ${mode === DictationMode.DEV_CHAT ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-gray-800 text-gray-600'}`}>
+             <button
+                onClick={() => {
+                    if (selectedModel === 'parakeet-local' || selectedModel === 'windows-speech') {
+                        showToast("Agent mode requires Gemini", 'info');
+                        return;
+                    }
+                    setMode(mode === DictationMode.RAW ? DictationMode.DEV_CHAT : DictationMode.RAW);
+                }}
+                className={`flex-1 py-2 text-[10px] font-bold border rounded transition-colors ${
+                    (selectedModel === 'parakeet-local' || selectedModel === 'windows-speech')
+                        ? 'border-gray-800 text-gray-700 cursor-not-allowed'
+                        : mode === DictationMode.DEV_CHAT
+                        ? 'border-purple-500 text-purple-400 bg-purple-500/10'
+                        : 'border-gray-800 text-gray-600'
+                }`}
+                disabled={selectedModel === 'parakeet-local' || selectedModel === 'windows-speech'}
+             >
                 {mode === DictationMode.DEV_CHAT ? 'AGENT MODE' : 'RAW MODE'}
              </button>
         </div>
 
+        {/* Live transcript preview for Web Speech */}
+        {liveTranscript && (
+            <div className="mb-3 p-3 bg-terminal-green/5 border border-terminal-green/30 rounded-lg animate-pulse">
+                <div className="text-[10px] text-terminal-green font-bold mb-1">LIVE TRANSCRIPTION</div>
+                <div className="text-sm text-gray-300 font-mono">{liveTranscript}</div>
+            </div>
+        )}
+
         <div className="flex-1 overflow-y-auto bg-black border border-gray-800 rounded-lg p-3 font-mono text-xs space-y-3 shadow-inner">
-            {transcripts.length === 0 && <div className="text-center text-gray-700 mt-10 italic">History is empty.</div>}
+            {transcripts.length === 0 && !liveTranscript && <div className="text-center text-gray-700 mt-10 italic">History is empty.</div>}
             {transcripts.map((t, i) => (
                 <div key={t.id} className="flex flex-col items-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="w-full bg-gray-900/80 p-3 rounded border border-gray-800 hover:border-gray-600 transition-colors group relative">
