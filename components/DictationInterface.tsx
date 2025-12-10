@@ -246,6 +246,7 @@ export const DictationInterface: React.FC = () => {
                 </select>
             </div>
 
+            {/* Model Select */}
             <div className="flex flex-col">
                 <label className="text-[10px] text-gray-500 font-bold mb-1">MODEL</label>
                 <select 
@@ -254,7 +255,7 @@ export const DictationInterface: React.FC = () => {
                     className="bg-gray-900 border border-gray-800 text-xs rounded p-2 text-gray-300 focus:border-terminal-green focus:outline-none"
                 >
                     <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                    <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                     <option value="parakeet-local">Parakeet (Local)</option>
                 </select>
             </div>
