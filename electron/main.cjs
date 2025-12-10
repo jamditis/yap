@@ -110,8 +110,12 @@ function createWindow() {
     },
   });
 
-  const startUrl = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, '../dist/index.html')}`;
-  mainWindow.loadURL(startUrl);
+  // Use loadURL for dev server, loadFile for production (handles MIME types correctly)
+  if (process.env.ELECTRON_START_URL) {
+    mainWindow.loadURL(process.env.ELECTRON_START_URL);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+  }
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
