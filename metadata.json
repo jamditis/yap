@@ -1,0 +1,7 @@
+{
+  "name": "Yap",
+  "description": "A discreet, floating voice dictation bug for developers. Interacts with CLI tools via Gemini Live.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

@@ -1,0 +1,8 @@
+# requirements.txt
+fastapi
+uvicorn
+python-multipart
+nemo_toolkit[asr]
+torch
+torchaudio
+pydub
