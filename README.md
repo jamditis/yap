@@ -4,8 +4,6 @@
 
 Yap is a lightweight tool for voice-driven coding and text-to-speech (TTS) workflows. This repository contains everything needed to run the app locally and experiment with its voice/TTS features.
 
-View the live app in AI Studio: https://ai.studio/apps/drive/1ldqOy6sdTztdqLlJrakwza5QGTkCmcjc
-
 ## Features (summary)
 - Text-to-speech / voice interaction support (uses Gemini / configured TTS provider via env)
 - Local development server for rapid iteration
