@@ -158,3 +158,20 @@ npm run electron:build   # Build + package with electron-builder
 ### Microphone Not Working
 - Allow microphone access in Windows Privacy settings
 - Check browser/Electron has microphone permissions
+
+
+---
+
+## Multi-machine workflow
+
+This repo is developed across multiple machines (MacBook, work Windows PC, home Windows PC). GitHub is the source of truth.
+
+**Before switching machines:**
+```bash
+git add . && git commit -m "WIP" && git push
+```
+
+**After switching machines:**
+```bash
+git pull
+```
