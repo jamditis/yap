@@ -51,6 +51,105 @@ const SpinnerIcon = () => (
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+const HelpIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+    </svg>
+);
+const CloseIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+);
+
+// Tooltip component
+const Tooltip: React.FC<{ text: string; children: React.ReactNode; position?: 'top' | 'bottom' }> = ({ text, children, position = 'top' }) => {
+    const [show, setShow] = useState(false);
+    return (
+        <div className="relative inline-flex" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+            {children}
+            {show && (
+                <div className={`absolute z-50 px-2 py-1 text-[10px] font-medium text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap ${
+                    position === 'top' ? 'bottom-full mb-2 left-1/2 -translate-x-1/2' : 'top-full mt-2 left-1/2 -translate-x-1/2'
+                }`}>
+                    {text}
+                    <div className={`absolute w-2 h-2 bg-gray-900 border-gray-700 transform rotate-45 left-1/2 -translate-x-1/2 ${
+                        position === 'top' ? 'top-full -mt-1 border-r border-b' : 'bottom-full -mb-1 border-l border-t'
+                    }`} />
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Help Modal component
+const HelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-[#0c0c0c] border border-gray-700 rounded-lg max-w-md w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center p-4 border-b border-gray-800 sticky top-0 bg-[#0c0c0c]">
+                    <h2 className="text-lg font-bold text-terminal-green">Yap User Guide</h2>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white">
+                        <CloseIcon />
+                    </button>
+                </div>
+                <div className="p-4 space-y-4 text-sm text-gray-300">
+                    <section>
+                        <h3 className="text-terminal-green font-bold mb-2">Keyboard Shortcuts</h3>
+                        <div className="space-y-1 text-xs">
+                            <div className="flex justify-between"><span className="text-gray-400">Start/Stop Recording</span><kbd className="bg-gray-800 px-2 py-0.5 rounded">Alt+S</kbd></div>
+                            <div className="flex justify-between"><span className="text-gray-400">Show/Hide Window</span><kbd className="bg-gray-800 px-2 py-0.5 rounded">Alt+H</kbd></div>
+                        </div>
+                    </section>
+                    <section>
+                        <h3 className="text-terminal-green font-bold mb-2">Basic Workflow</h3>
+                        <ol className="list-decimal list-inside space-y-1 text-xs text-gray-400">
+                            <li>Focus your terminal (Claude Code, PowerShell, etc.)</li>
+                            <li>Press <kbd className="bg-gray-800 px-1 rounded">Alt+S</kbd> to start recording</li>
+                            <li>Speak your command or text</li>
+                            <li>Press <kbd className="bg-gray-800 px-1 rounded">Alt+S</kbd> again to stop</li>
+                            <li>Right-click in your terminal to paste</li>
+                        </ol>
+                    </section>
+                    <section>
+                        <h3 className="text-terminal-green font-bold mb-2">Transcription Models</h3>
+                        <div className="space-y-2 text-xs">
+                            <div><span className="text-blue-400 font-bold">Gemini 2.0/2.5 Flash</span> <span className="text-gray-500">- Cloud-based, high quality, supports Agent mode</span></div>
+                            <div><span className="text-yellow-400 font-bold">Parakeet</span> <span className="text-gray-500">- Local NVIDIA GPU, free, requires setup</span></div>
+                            <div><span className="text-green-400 font-bold">Windows Speech</span> <span className="text-gray-500">- Built-in, no setup, works offline</span></div>
+                        </div>
+                    </section>
+                    <section>
+                        <h3 className="text-terminal-green font-bold mb-2">Mode Settings</h3>
+                        <div className="space-y-2 text-xs">
+                            <div><span className="text-terminal-green font-bold">AUTO-COPY</span> <span className="text-gray-500">- Automatically copy transcription to clipboard</span></div>
+                            <div><span className="text-blue-400 font-bold">PASTE</span> <span className="text-gray-500">- Enable clipboard integration for terminal paste</span></div>
+                            <div><span className="text-purple-400 font-bold">AGENT MODE</span> <span className="text-gray-500">- Convert natural speech to CLI commands (Gemini only)</span></div>
+                        </div>
+                    </section>
+                    <section>
+                        <h3 className="text-terminal-green font-bold mb-2">Agent Mode Examples</h3>
+                        <div className="space-y-1 text-xs font-mono bg-gray-900 p-2 rounded">
+                            <div><span className="text-gray-500">"show git status"</span> <span className="text-terminal-green">git status</span></div>
+                            <div><span className="text-gray-500">"list all files"</span> <span className="text-terminal-green">ls -la</span></div>
+                            <div><span className="text-gray-500">"make folder called test"</span> <span className="text-terminal-green">mkdir test</span></div>
+                            <div><span className="text-gray-500">"install lodash"</span> <span className="text-terminal-green">npm install lodash</span></div>
+                        </div>
+                    </section>
+                    <section>
+                        <h3 className="text-terminal-green font-bold mb-2">Troubleshooting</h3>
+                        <div className="space-y-1 text-xs text-gray-400">
+                            <div><span className="text-white">No transcription?</span> Check API key in .env.local</div>
+                            <div><span className="text-white">Paste not working?</span> Right-click to paste in Claude Code</div>
+                            <div><span className="text-white">Parakeet errors?</span> Check Python + CUDA + FFmpeg installed</div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const DictationInterface: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -69,6 +168,7 @@ export const DictationInterface: React.FC = () => {
   const [toast, setToast] = useState<{msg: string, type: 'info' | 'error' | 'success'} | null>(null);
   const [lastCopiedId, setLastCopiedId] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [showHelp, setShowHelp] = useState(false);
 
   const serviceRef = useRef<GeminiLiveService | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -474,12 +574,21 @@ export const DictationInterface: React.FC = () => {
             </div>
         )}
 
+        <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
+
         <div className="flex justify-between items-center mb-4 border-b border-gray-800 pb-4">
             <h1 className="text-xl font-mono font-bold text-terminal-green tracking-tighter">YAP v1.2</h1>
             <div className="flex gap-2">
-                <button onClick={() => setTranscripts([])} className="p-2 hover:bg-gray-800 rounded text-gray-400 hover:text-red-500 transition-colors">
-                    <TrashIcon/>
-                </button>
+                <Tooltip text="User Guide">
+                    <button onClick={() => setShowHelp(true)} className="p-2 hover:bg-gray-800 rounded text-gray-400 hover:text-terminal-green transition-colors">
+                        <HelpIcon/>
+                    </button>
+                </Tooltip>
+                <Tooltip text="Clear History">
+                    <button onClick={() => setTranscripts([])} className="p-2 hover:bg-gray-800 rounded text-gray-400 hover:text-red-500 transition-colors">
+                        <TrashIcon/>
+                    </button>
+                </Tooltip>
             </div>
         </div>
 
@@ -520,7 +629,7 @@ export const DictationInterface: React.FC = () => {
                 </button>
             </div>
             <div className="mt-3 text-xs font-mono text-gray-500 uppercase tracking-widest">
-                {isProcessing ? "TRANSCRIBING..." : isRecording ? "RECORDING..." : "READY"}
+                {isProcessing ? "TRANSCRIBING..." : isRecording ? "RECORDING..." : "READY (Alt+S)"}
             </div>
         </div>
 
@@ -563,33 +672,39 @@ export const DictationInterface: React.FC = () => {
         </div>
 
         <div className="flex gap-2 mb-4">
-             <button onClick={() => setAutoCopy(!autoCopy)} 
-                className={`flex-1 py-2 text-[10px] font-bold border rounded transition-colors ${autoCopy ? 'border-terminal-green text-terminal-green bg-terminal-green/5' : 'border-gray-800 text-gray-600'}`}>
-                AUTO-COPY: {autoCopy ? 'ON' : 'OFF'}
-             </button>
-             <button onClick={() => setTerminalMode(!terminalMode)} 
-                className={`flex-1 py-2 text-[10px] font-bold border rounded transition-colors ${terminalMode ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 'border-gray-800 text-gray-600'}`}>
-                PASTE: {terminalMode ? 'ON' : 'OFF'}
-             </button>
-             <button
-                onClick={() => {
-                    if (selectedModel === 'parakeet-local' || selectedModel === 'windows-speech') {
-                        showToast("Agent mode requires Gemini", 'info');
-                        return;
-                    }
-                    setMode(mode === DictationMode.RAW ? DictationMode.DEV_CHAT : DictationMode.RAW);
-                }}
-                className={`flex-1 py-2 text-[10px] font-bold border rounded transition-colors ${
-                    (selectedModel === 'parakeet-local' || selectedModel === 'windows-speech')
-                        ? 'border-gray-800 text-gray-700 cursor-not-allowed'
-                        : mode === DictationMode.DEV_CHAT
-                        ? 'border-purple-500 text-purple-400 bg-purple-500/10'
-                        : 'border-gray-800 text-gray-600'
-                }`}
-                disabled={selectedModel === 'parakeet-local' || selectedModel === 'windows-speech'}
-             >
-                {mode === DictationMode.DEV_CHAT ? 'AGENT MODE' : 'RAW MODE'}
-             </button>
+             <Tooltip text="Auto-copy transcription to clipboard" position="bottom">
+                 <button onClick={() => setAutoCopy(!autoCopy)}
+                    className={`flex-1 py-2 text-[10px] font-bold border rounded transition-colors ${autoCopy ? 'border-terminal-green text-terminal-green bg-terminal-green/5' : 'border-gray-800 text-gray-600'}`}>
+                    AUTO-COPY: {autoCopy ? 'ON' : 'OFF'}
+                 </button>
+             </Tooltip>
+             <Tooltip text="Enable clipboard for terminal paste" position="bottom">
+                 <button onClick={() => setTerminalMode(!terminalMode)}
+                    className={`flex-1 py-2 text-[10px] font-bold border rounded transition-colors ${terminalMode ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 'border-gray-800 text-gray-600'}`}>
+                    PASTE: {terminalMode ? 'ON' : 'OFF'}
+                 </button>
+             </Tooltip>
+             <Tooltip text={mode === DictationMode.DEV_CHAT ? "Convert speech to CLI commands" : "Transcribe speech verbatim"} position="bottom">
+                 <button
+                    onClick={() => {
+                        if (selectedModel === 'parakeet-local' || selectedModel === 'windows-speech') {
+                            showToast("Agent mode requires Gemini", 'info');
+                            return;
+                        }
+                        setMode(mode === DictationMode.RAW ? DictationMode.DEV_CHAT : DictationMode.RAW);
+                    }}
+                    className={`flex-1 py-2 text-[10px] font-bold border rounded transition-colors ${
+                        (selectedModel === 'parakeet-local' || selectedModel === 'windows-speech')
+                            ? 'border-gray-800 text-gray-700 cursor-not-allowed'
+                            : mode === DictationMode.DEV_CHAT
+                            ? 'border-purple-500 text-purple-400 bg-purple-500/10'
+                            : 'border-gray-800 text-gray-600'
+                    }`}
+                    disabled={selectedModel === 'parakeet-local' || selectedModel === 'windows-speech'}
+                 >
+                    {mode === DictationMode.DEV_CHAT ? 'AGENT MODE' : 'RAW MODE'}
+                 </button>
+             </Tooltip>
         </div>
 
         {/* Live transcript preview for Web Speech */}
